@@ -23,23 +23,23 @@ data "databricks_aws_unity_catalog_policy" "this" {
   role_name      = var.iam_role_name
 }
 
-module "iam_uc_role_policy" {
+resource "aws_iam_policy" "this" {
   for_each = var.bucket_names
-  source   = "terraform-aws-modules/iam/aws//modules/iam-policy"
-  version  = "~>5.0"
 
   name   = each.value
   policy = data.databricks_aws_unity_catalog_policy.this[each.key].json
 }
 
-module "iam_uc_role" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
-  version = "~>5.0"
+resource "aws_iam_role" "this" {
+  name               = var.iam_role_name
+  assume_role_policy = data.databricks_aws_unity_catalog_assume_role_policy.this.json
 
-  role_name                       = var.iam_role_name
-  create_role                     = true
-  create_custom_role_trust_policy = true
-  custom_role_trust_policy        = data.databricks_aws_unity_catalog_assume_role_policy.this.json
-  role_permissions_boundary_arn   = var.iam_role_boundary_arn
-  custom_role_policy_arns         = [for k, v in var.bucket_names : module.iam_uc_role_policy[k].arn]
+  permissions_boundary = var.iam_role_boundary_arn
+}
+
+resource "aws_iam_role_policy_attachment" "this" {
+  for_each = var.bucket_names
+
+  role       = aws_iam_role.this.name
+  policy_arn = aws_iam_policy.this[each.key].arn
 }
